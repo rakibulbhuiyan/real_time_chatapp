@@ -11,7 +11,7 @@ def send_push_notification(notification_id):
     
     channel_layer = get_channel_layer()
     async_to_sync(channel_layer.group_send)(
-        "notifications",
+        f"user_{notification.user.id}", # Ensure this matches the group name in the consumer
         {
             "type": "send_notification",
             "message": serializer.data
