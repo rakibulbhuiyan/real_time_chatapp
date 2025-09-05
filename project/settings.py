@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     # local apps
     'apps.user',
     'apps.notifications',
+    'apps.chatapp',
 
     # Google login
     'django.contrib.sites',
