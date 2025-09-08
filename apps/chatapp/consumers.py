@@ -43,3 +43,57 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "status": "sent"
                 }
             )
+             # 👁️ Seen status update
+        elif action == "message_seen":
+            message_ids = data.get("message_ids", [])
+            await self.mark_messages_as_seen(message_ids, self, other_user=self.other_user)
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "messages_seen",
+                    "message_ids": message_ids,
+                    "seen_by": self.user.username,
+                    "status": "seen"
+                }
+            )
+
+    async def chat_message(self, event):
+        await self.send(text_data=json.dumps({
+            "id": event["id"],
+            "message": event["message"],
+            "file": event["file"],
+            "sender": event["sender"],
+            "timestamp": event["timestamp"],
+            "status": event["status"]
+        }))
+        await self.mark_messages_as_delivered([event["id"]], self.other_user)
+        
+    async def status_update(self, event):
+        await self.send(text_data=json.dumps({
+            "message_ids": event["message_ids"],
+            "status": event["status"],
+            "updated_by": event["updated_by"]
+        }))
+        await self.mark_messages_as_seen(event["message_ids"], self.other_user)
+
+
+# ----------------- DB Operations -----------------
+    @database_sync_to_async
+    def save_message(self, sender, receiver, text, file_url=None):
+        return Message.objects.create(sender=sender, receiver=receiver, text=text)
+    
+    @database_sync_to_async
+    def mark_messages_as_delivered(self, message_ids, other_user):
+        msg = Message.objects.filter(id__in=message_ids, receiver=other_user, status='sent')
+        msg.delivered = True
+        msg.save()
+        return msg
+    
+    @database_sync_to_async
+    def mark_messages_as_seen(self, message_ids, other_user):
+        msg = Message.objects.filter(id__in=message_ids, receiver=other_user, status__in=['sent', 'delivered'])
+        msg.update(seen=True, status='seen')
+        return msg
+    @database_sync_to_async
+    def get_user(self, user_id):
+        return User.objects.get(id=user_id)
